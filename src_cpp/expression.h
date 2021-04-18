@@ -4,6 +4,7 @@
 
 #include "kiwisolver/src/lib.rs.h"
 #include "../upstream/kiwi/kiwi/expression.h"
+#include "../upstream/kiwi/kiwi/symbolics.h"
 
 namespace kiwi
 {
@@ -16,5 +17,17 @@ namespace kiwi
             terms.push_back(*termSlice[i]);
         }
         return std::make_unique<Expression>(terms, constant);
+    }
+
+    std::unique_ptr<Expression> add_expressions(const Expression &lhs, const Expression &rhs)
+    {
+        auto expr = lhs + rhs;
+        return std::make_unique<Expression>(expr);
+    }
+
+    std::unique_ptr<Expression> sub_expressions(const Expression &lhs, const Expression &rhs)
+    {
+        auto expr = lhs - rhs;
+        return std::make_unique<Expression>(expr);
     }
 }
