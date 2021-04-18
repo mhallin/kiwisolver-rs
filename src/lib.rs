@@ -1,9 +1,6 @@
 #![allow(unused_unsafe)]
 
-use std::{
-    ops::{Add, Mul, Sub},
-    rc::Rc,
-};
+use std::{fmt::Debug, ops::{Add, Mul, Sub}, rc::Rc};
 
 use cxx::UniquePtr;
 
@@ -240,6 +237,12 @@ impl Solver {
     pub fn dump(&mut self) {
         let solver = self.solver.pin_mut();
         solver.dump();
+    }
+}
+
+impl Debug for Variable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Variable({:?})", self.name())
     }
 }
 
