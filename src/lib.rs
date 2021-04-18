@@ -1,5 +1,13 @@
+#![allow(unused_unsafe)]
+
+use std::{
+    ops::{Add, Mul, Sub},
+    rc::Rc,
+};
+
+use cxx::UniquePtr;
+
 #[cxx::bridge(namespace = "kiwi")]
-#[allow(dead_code)]
 mod ffi {
     unsafe extern "C++" {
         include!("kiwisolver/upstream/kiwi/kiwi/variable.h");
@@ -52,6 +60,20 @@ mod ffi {
         ) -> UniquePtr<Constraint>;
     }
 
+    #[repr(u8)]
+    enum SolverError {
+        NoError,
+        DuplicateConstraint,
+        UnknownConstraint,
+        UnsatisfiableConstraint,
+    }
+
+    unsafe extern "C++" {
+        include!("kiwisolver/src_cpp/solver.h");
+
+        type SolverError;
+    }
+
     unsafe extern "C++" {
         include!("kiwisolver/upstream/kiwi/kiwi/solver.h");
         include!("kiwisolver/src_cpp/solver.h");
@@ -60,10 +82,9 @@ mod ffi {
 
         fn new_solver() -> UniquePtr<Solver>;
 
-        #[rust_name = "add_constraint"]
-        fn addConstraint(self: Pin<&mut Solver>, constraint: &Constraint);
-        #[rust_name = "remove_constraint"]
-        fn removeConstraint(self: Pin<&mut Solver>, constraint: &Constraint);
+        fn add_constraint(solver: Pin<&mut Solver>, constraint: &Constraint) -> SolverError;
+        fn remove_constraint(solver: Pin<&mut Solver>, constraint: &Constraint) -> SolverError;
+
         #[rust_name = "has_constraint"]
         fn hasConstraint(&self, constraint: &Constraint) -> bool;
 
@@ -75,70 +96,334 @@ mod ffi {
     }
 }
 
-const STRENGTH_REQUIRED: f64 = 1000.0 * 1000000.0 + 1000.0 * 1000.0 + 1000.0;
-const STRENGTH_STRONG: f64 = 1.0 * 1000000.0;
-const STRENGTH_MEDIUM: f64 = 1.0 * 1000.0;
-const STRENGTH_WEAK: f64 = 1.0;
+pub const STRENGTH_REQUIRED: f64 = 1000.0 * 1000000.0 + 1000.0 * 1000.0 + 1000.0;
+pub const STRENGTH_STRONG: f64 = 1.0 * 1000000.0;
+pub const STRENGTH_MEDIUM: f64 = 1.0 * 1000.0;
+pub const STRENGTH_WEAK: f64 = 1.0;
+
+#[derive(Clone)]
+pub struct Variable {
+    var: Rc<UniquePtr<ffi::Variable>>,
+}
+
+#[derive(Clone)]
+pub struct Term {
+    term: Rc<UniquePtr<ffi::Term>>,
+}
+
+#[derive(Clone)]
+pub struct Expression {
+    expr: Rc<UniquePtr<ffi::Expression>>,
+}
+
+#[derive(Clone)]
+pub struct Constraint {
+    constraint: Rc<UniquePtr<ffi::Constraint>>,
+}
+
+pub struct Solver {
+    solver: UniquePtr<ffi::Solver>,
+}
+
+#[derive(Copy, Clone)]
+pub enum RelationalOperator {
+    LessThanEqualZero,
+    EqualZero,
+    GreaterThanEqualZero,
+}
+
+#[derive(Copy, Clone)]
+pub enum SolverError {
+    BadRequiredStrength,
+    DuplicateConstraint,
+    UnknownConstraint,
+    UnsatisfiableConstraint,
+}
+
+impl Variable {
+    pub fn new(name: &str) -> Self {
+        cxx::let_cxx_string!(name = name);
+
+        Self {
+            var: Rc::new(unsafe { ffi::new_variable(&name) }),
+        }
+    }
+
+    pub fn value(&self) -> f64 {
+        self.var.value()
+    }
+
+    pub fn name(&self) -> &str {
+        unsafe { std::str::from_utf8_unchecked(self.var.name().as_bytes()) }
+    }
+}
+
+impl Term {
+    pub fn new(variable: &Variable, coefficient: f64) -> Self {
+        Self {
+            term: Rc::new(unsafe { ffi::new_term(&variable.var, coefficient) }),
+        }
+    }
+}
+
+impl Expression {
+    pub fn new(terms: &[&Term], constant: f64) -> Self {
+        unsafe {
+            let terms = terms
+                .into_iter()
+                .map(|t| (&t.term as &UniquePtr<ffi::Term>).as_ref().unwrap() as *const ffi::Term)
+                .collect::<Vec<_>>();
+            Self {
+                expr: Rc::new(ffi::new_expression(&terms, constant)),
+            }
+        }
+    }
+}
+
+impl Constraint {
+    pub fn new(expression: &Expression, op: RelationalOperator, strength: f64) -> Self {
+        let op = match op {
+            RelationalOperator::LessThanEqualZero => ffi::RelationalOperator::OP_LE,
+            RelationalOperator::EqualZero => ffi::RelationalOperator::OP_EQ,
+            RelationalOperator::GreaterThanEqualZero => ffi::RelationalOperator::OP_GE,
+        };
+
+        Self {
+            constraint: Rc::new(unsafe { ffi::new_constraint(&expression.expr, op, strength) }),
+        }
+    }
+}
+
+impl Into<Result<(), SolverError>> for ffi::SolverError {
+    fn into(self) -> Result<(), SolverError> {
+        match self {
+            ffi::SolverError::NoError => Ok(()),
+            ffi::SolverError::DuplicateConstraint => Err(SolverError::DuplicateConstraint),
+            ffi::SolverError::UnknownConstraint => Err(SolverError::UnknownConstraint),
+            ffi::SolverError::UnsatisfiableConstraint => Err(SolverError::UnsatisfiableConstraint),
+            value => panic!("Unknown error from solver: {}", value.repr),
+        }
+    }
+}
+
+impl Solver {
+    pub fn new() -> Self {
+        Self {
+            solver: unsafe { ffi::new_solver() },
+        }
+    }
+
+    pub fn add_constraint(&mut self, constraint: &Constraint) -> Result<(), SolverError> {
+        let solver = self.solver.pin_mut();
+        unsafe { ffi::add_constraint(solver, &constraint.constraint) }.into()
+    }
+
+    pub fn remove_constraint(&mut self, constraint: &Constraint) -> Result<(), SolverError> {
+        let solver = self.solver.pin_mut();
+        unsafe { ffi::remove_constraint(solver, &constraint.constraint) }.into()
+    }
+
+    pub fn has_constraint(&mut self, constraint: &Constraint) -> bool {
+        self.solver.has_constraint(&constraint.constraint)
+    }
+
+    pub fn update_variables(&mut self) {
+        let solver = self.solver.pin_mut();
+        solver.update_variables();
+    }
+
+    pub fn reset(&mut self) {
+        let solver = self.solver.pin_mut();
+        solver.reset();
+    }
+
+    pub fn dump(&mut self) {
+        let solver = self.solver.pin_mut();
+        solver.dump();
+    }
+}
+
+impl<'a> Mul<f64> for &'a Variable {
+    type Output = Term;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        Term::new(self, rhs)
+    }
+}
+
+impl Mul<f64> for Variable {
+    type Output = Term;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        Term::new(&self, rhs)
+    }
+}
+
+impl<'a> Mul<&'a Variable> for f64 {
+    type Output = Term;
+
+    fn mul(self, rhs: &'a Variable) -> Self::Output {
+        Term::new(rhs, self)
+    }
+}
+
+impl Mul<Variable> for f64 {
+    type Output = Term;
+
+    fn mul(self, rhs: Variable) -> Self::Output {
+        Term::new(&rhs, self)
+    }
+}
+
+impl<'a> Add<f64> for &'a Term {
+    type Output = Expression;
+
+    fn add(self, rhs: f64) -> Self::Output {
+        Expression::new(&[self], rhs)
+    }
+}
+
+impl Add<f64> for Term {
+    type Output = Expression;
+
+    fn add(self, rhs: f64) -> Self::Output {
+        Expression::new(&[&self], rhs)
+    }
+}
+
+impl<'a> Add<&'a Term> for f64 {
+    type Output = Expression;
+
+    fn add(self, rhs: &'a Term) -> Self::Output {
+        Expression::new(&[rhs], self)
+    }
+}
+
+impl Add<Term> for f64 {
+    type Output = Expression;
+
+    fn add(self, rhs: Term) -> Self::Output {
+        Expression::new(&[&rhs], self)
+    }
+}
+
+impl<'a> Sub<f64> for &'a Term {
+    type Output = Expression;
+
+    fn sub(self, rhs: f64) -> Self::Output {
+        Expression::new(&[self], -rhs)
+    }
+}
+
+impl Sub<f64> for Term {
+    type Output = Expression;
+
+    fn sub(self, rhs: f64) -> Self::Output {
+        Expression::new(&[&self], -rhs)
+    }
+}
+
+impl<'a> Sub<&'a Term> for f64 {
+    type Output = Expression;
+
+    fn sub(self, rhs: &'a Term) -> Self::Output {
+        Expression::new(&[rhs], -self)
+    }
+}
+
+impl Sub<Term> for f64 {
+    type Output = Expression;
+
+    fn sub(self, rhs: Term) -> Self::Output {
+        Expression::new(&[&rhs], -self)
+    }
+}
 
 #[cfg(test)]
 mod test {
-    use cxx::let_cxx_string;
-
-    use super::ffi;
+    use super::{Constraint, RelationalOperator, Solver, SolverError, Variable, STRENGTH_REQUIRED};
 
     #[test]
     fn create_variable() {
-        unsafe {
-            let_cxx_string!(name = "var_name");
+        let var = Variable::new("var_name");
 
-            let var = ffi::new_variable(&name);
-            assert_eq!(var.name(), name.as_ref().get_ref());
-        }
+        assert_eq!(var.name(), "var_name");
     }
 
     #[test]
     fn create_term() {
-        unsafe {
-            let_cxx_string!(name = "var_name");
-
-            let var = ffi::new_variable(&name);
-            let _term = ffi::new_term(&var, 1.0);
-        }
+        let var = Variable::new("var_name");
+        let _term = var * 1.0;
     }
 
     #[test]
     fn create_expression() {
-        unsafe {
-            let_cxx_string!(name = "var_name");
-
-            let var = ffi::new_variable(&name);
-            let term = ffi::new_term(&var, 1.0);
-            let terms = vec![term.as_ref().unwrap() as *const ffi::Term];
-            let _expr = ffi::new_expression(&terms, 0.0);
-        }
+        let var = Variable::new("var_name");
+        let _expr = var * 1.0 + 0.0;
     }
 
     #[test]
     fn create_constraint() {
-        unsafe {
-            let_cxx_string!(name = "var_name");
-
-            let var = ffi::new_variable(&name);
-            let term = ffi::new_term(&var, 1.0);
-            let terms = vec![term.as_ref().unwrap() as *const ffi::Term];
-            let expr = ffi::new_expression(&terms, 0.0);
-            let _constraint = ffi::new_constraint(
-                &expr,
-                ffi::RelationalOperator::OP_GE,
-                super::STRENGTH_REQUIRED,
-            );
-        }
+        let expr = Variable::new("var_name") * 1.0 + 0.0;
+        let _constraint = Constraint::new(
+            &expr,
+            RelationalOperator::GreaterThanEqualZero,
+            STRENGTH_REQUIRED,
+        );
     }
 
     #[test]
     fn create_solver() {
-        unsafe {
-            let _solver = ffi::new_solver();
-        }
+        let var = Variable::new("var_name");
+        let expr = &var * 1.0 - 5.0;
+        let constraint = Constraint::new(
+            &expr,
+            RelationalOperator::GreaterThanEqualZero,
+            STRENGTH_REQUIRED,
+        );
+
+        let mut solver = Solver::new();
+        assert!(solver.add_constraint(&constraint).is_ok());
+        solver.update_variables();
+
+        assert_eq!(var.value(), 5.0);
+    }
+
+    #[test]
+    fn solver_duplicate_constraints() {
+        let var = Variable::new("var_name");
+        let expr = &var * 1.0 - 5.0;
+        let constraint = Constraint::new(
+            &expr,
+            RelationalOperator::GreaterThanEqualZero,
+            STRENGTH_REQUIRED,
+        );
+
+        let mut solver = Solver::new();
+        assert!(solver.add_constraint(&constraint).is_ok());
+        assert!(matches!(
+            solver.add_constraint(&constraint),
+            Err(SolverError::DuplicateConstraint)
+        ));
+    }
+
+    #[test]
+    fn remove_constraint() {
+        let var = Variable::new("var_name");
+        let expr = &var * 1.0 - 5.0;
+        let constraint = Constraint::new(
+            &expr,
+            RelationalOperator::GreaterThanEqualZero,
+            STRENGTH_REQUIRED,
+        );
+
+        let mut solver = Solver::new();
+        assert!(solver.add_constraint(&constraint).is_ok());
+
+        assert!(solver.remove_constraint(&constraint).is_ok());
+        assert!(matches!(
+            solver.remove_constraint(&constraint),
+            Err(SolverError::UnknownConstraint)
+        ));
     }
 }
