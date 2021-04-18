@@ -1,0 +1,3 @@
+[submodule "upstream/kiwi"]
+	path = upstream/kiwi
+	url = git@github.com:nucleic/kiwi.git
