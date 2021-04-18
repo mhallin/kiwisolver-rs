@@ -36,4 +36,10 @@ namespace kiwi
         auto expr = lhs + v;
         return std::make_unique<Expression>(expr);
     }
+
+    std::unique_ptr<Expression> mul_expr_double(const Expression &lhs, double v)
+    {
+        auto expr = lhs * v;
+        return std::make_unique<Expression>(expr);
+    }
 }

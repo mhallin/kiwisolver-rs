@@ -1,5 +1,5 @@
 use std::{
-    ops::{Add, Sub},
+    ops::{Add, Mul, Sub},
     rc::Rc,
 };
 
@@ -107,6 +107,32 @@ impl Sub<f64> for Expression {
     fn sub(self, rhs: f64) -> Self::Output {
         unsafe {
             let expr = sys::add_expr_double(self.expr(), -rhs);
+            Expression {
+                expr: Rc::new(expr),
+            }
+        }
+    }
+}
+
+impl Mul<f64> for Expression {
+    type Output = Expression;
+
+    fn mul(self, rhs: f64) -> Self::Output {
+        unsafe {
+            let expr = sys::mul_expr_double(self.expr(), rhs);
+            Expression {
+                expr: Rc::new(expr),
+            }
+        }
+    }
+}
+
+impl Mul<Expression> for f64 {
+    type Output = Expression;
+
+    fn mul(self, rhs: Expression) -> Self::Output {
+        unsafe {
+            let expr = sys::mul_expr_double(rhs.expr(), self);
             Expression {
                 expr: Rc::new(expr),
             }

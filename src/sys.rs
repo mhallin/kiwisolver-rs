@@ -32,6 +32,7 @@ mod ffi {
         fn add_expressions(lhs: &Expression, rhs: &Expression) -> UniquePtr<Expression>;
         fn sub_expressions(lhs: &Expression, rhs: &Expression) -> UniquePtr<Expression>;
         fn add_expr_double(lhs: &Expression, rhs: f64) -> UniquePtr<Expression>;
+        fn mul_expr_double(lhs: &Expression, rhs: f64) -> UniquePtr<Expression>;
     }
 
     #[repr(u32)]
