@@ -2,7 +2,7 @@
 
 #include <memory>
 
-#include "kiwisolver/src/lib.rs.h"
+#include "kiwisolver/src/sys.rs.h"
 #include "../upstream/kiwi/kiwi/expression.h"
 #include "../upstream/kiwi/kiwi/symbolics.h"
 
