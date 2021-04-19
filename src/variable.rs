@@ -1,8 +1,8 @@
-use std::{ops::Mul, rc::Rc, fmt::Debug};
+use std::{fmt::Debug, ops::Mul, rc::Rc};
 
 use cxx::UniquePtr;
 
-use crate::{Term, sys};
+use crate::{sys, Term};
 
 #[derive(Clone)]
 pub struct Variable {
@@ -31,9 +31,9 @@ impl Variable {
     }
 }
 
-impl Into<Term> for Variable {
-    fn into(self) -> Term {
-        Term::new(&self, 1.0)
+impl From<Variable> for Term {
+    fn from(val: Variable) -> Self {
+        Term::new(&val, 1.0)
     }
 }
 
@@ -74,4 +74,3 @@ impl Mul<Variable> for f64 {
         Term::new(&rhs, self)
     }
 }
-

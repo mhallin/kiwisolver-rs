@@ -17,9 +17,9 @@ impl Terms {
     }
 }
 
-impl Into<Expression> for Terms {
-    fn into(self) -> Expression {
-        let terms = self.terms.iter().collect::<Vec<_>>();
+impl From<Terms> for Expression {
+    fn from(val: Terms) -> Self {
+        let terms = val.terms.iter().collect::<Vec<_>>();
         Expression::new(&terms, 0.0)
     }
 }

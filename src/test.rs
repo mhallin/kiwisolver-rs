@@ -1,3 +1,5 @@
+#![allow(clippy::float_cmp)]
+
 use crate::{Constraint, RelationalOperator, Solver, SolverError, Variable, STRENGTH_REQUIRED};
 
 #[test]

@@ -16,6 +16,12 @@ pub enum SolverError {
     UnsatisfiableConstraint,
 }
 
+impl Default for Solver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Solver {
     pub fn new() -> Self {
         Self {
@@ -53,9 +59,9 @@ impl Solver {
     }
 }
 
-impl Into<Result<(), SolverError>> for sys::SolverError {
-    fn into(self) -> Result<(), SolverError> {
-        match self {
+impl From<sys::SolverError> for Result<(), SolverError> {
+    fn from(val: sys::SolverError) -> Self {
+        match val {
             sys::SolverError::NoError => Ok(()),
             sys::SolverError::DuplicateConstraint => Err(SolverError::DuplicateConstraint),
             sys::SolverError::UnknownConstraint => Err(SolverError::UnknownConstraint),

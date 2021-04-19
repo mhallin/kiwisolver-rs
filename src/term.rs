@@ -24,9 +24,9 @@ impl Term {
     }
 }
 
-impl Into<Terms> for Term {
-    fn into(self) -> Terms {
-        Terms::new(vec![self])
+impl From<Term> for Terms {
+    fn from(val: Term) -> Self {
+        Terms::new(vec![val])
     }
 }
 

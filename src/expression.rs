@@ -16,7 +16,7 @@ impl Expression {
     pub fn new(terms: &[&Term], constant: f64) -> Self {
         unsafe {
             let terms = terms
-                .into_iter()
+                .iter()
                 .map(|t| t.term().as_ref().unwrap() as *const sys::Term)
                 .collect::<Vec<_>>();
             Self {
@@ -43,9 +43,9 @@ impl Expression {
     }
 }
 
-impl Into<Expression> for f64 {
-    fn into(self) -> Expression {
-        Expression::new(&[], self)
+impl From<f64> for Expression {
+    fn from(val: f64) -> Self {
+        Expression::new(&[], val)
     }
 }
 
