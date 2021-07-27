@@ -27,7 +27,7 @@ mod ffi {
 
         type Expression;
 
-        fn new_expression(terms: &[*const Term], constant: f64) -> UniquePtr<Expression>;
+        fn new_expression(terms: &[usize /* *const Term */], constant: f64) -> UniquePtr<Expression>;
 
         fn add_expressions(lhs: &Expression, rhs: &Expression) -> UniquePtr<Expression>;
         fn sub_expressions(lhs: &Expression, rhs: &Expression) -> UniquePtr<Expression>;

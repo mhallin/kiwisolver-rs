@@ -8,13 +8,13 @@
 
 namespace kiwi
 {
-    std::unique_ptr<Expression> new_expression(::rust::Slice<const Term *> termSlice, double constant)
+    std::unique_ptr<Expression> new_expression(::rust::Slice<const size_t> termSlice, double constant)
     {
         std::vector<Term> terms;
         terms.reserve(termSlice.size());
         for (size_t i = 0; i < termSlice.size(); ++i)
         {
-            terms.push_back(*termSlice[i]);
+            terms.push_back(*reinterpret_cast<const Term*>(termSlice[i]));
         }
         return std::make_unique<Expression>(terms, constant);
     }

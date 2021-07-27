@@ -17,7 +17,7 @@ impl Expression {
         unsafe {
             let terms = terms
                 .iter()
-                .map(|t| t.term().as_ref().unwrap() as *const sys::Term)
+                .map(|t| t.term().as_ref().unwrap() as *const sys::Term as usize)
                 .collect::<Vec<_>>();
             Self {
                 expr: Rc::new(sys::new_expression(&terms, constant)),
@@ -30,7 +30,7 @@ impl Expression {
             let terms = terms
                 .terms()
                 .iter()
-                .map(|t| t.term().as_ref().unwrap() as *const sys::Term)
+                .map(|t| t.term().as_ref().unwrap() as *const sys::Term as usize)
                 .collect::<Vec<_>>();
             Self {
                 expr: Rc::new(sys::new_expression(&terms, constant)),
